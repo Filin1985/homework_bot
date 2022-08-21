@@ -20,7 +20,7 @@ HOMEWORK_STATUSES = {
 
 
 def send_message(bot, message):
-    ...
+    print('Hello')
 
 
 def get_api_answer(current_timestamp):
