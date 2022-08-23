@@ -42,11 +42,11 @@ HOMEWORK_STATUSES = {
 
 
 def send_message(bot, message):
-    """Направляет сообщение в чат телеграмм"""
+    """Направляет сообщение в чат телеграмм."""
     try:
         bot.send_message(TELEGRAM_CHAT_ID, message)
         logger.info('Сообщение {message} направлено в чат {TELEGRAM_CHAT_ID}')
-    except:
+    except Exception:
         logger.error('Сбой при отправке сообщения в чат телеграмм')
 
 
