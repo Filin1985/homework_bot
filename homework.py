@@ -76,7 +76,12 @@ def check_response(response):
             f'{datetime.now()} Ответ получен в формате отличном от словаря'
         )
         raise TypeError("Ответ получен в формате отличном от словаря")
-    return response['homeworks'][0]
+    try:
+        homework = response['homeworks'][0]
+    except IndexError:
+        logger.error('Домашняя работа отсутствует')
+        raise IndexError('Домашняя работа отсутствует')
+    return homework
 
 
 def parse_status(homework):
