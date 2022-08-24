@@ -60,22 +60,24 @@ def get_api_answer(current_timestamp):
         logger.error(
             f'{datetime.now()} Запрос {ENDPOINT} не отработал'
         )
-    if response.status != HTTPStatus.OK:
-        res_status = response.status
+    if response.status_code != HTTPStatus.OK:
+        res_status = response.status_code
         logger.error(
             f'{datetime.now()} Запрос {ENDPOINT} вернул результат {res_status}'
         )
         raise Exception(f'Запрос вернул статус {res_status}')
-    return response
+    return response.json()
 
 
 def check_response(response):
     """Проверяет, что полученные данные в нужном формате."""
+    print(response)
     if type(response) is not dict:
         logger.error(
             f'{datetime.now()} Ответ получен в формате отличном от словаря'
         )
         raise TypeError("Ответ получен в формате отличном от словаря")
+    print(response['homeworks'])
     return response['homeworks'][0]
 
 
