@@ -71,13 +71,11 @@ def get_api_answer(current_timestamp):
 
 def check_response(response):
     """Проверяет, что полученные данные в нужном формате."""
-    print(response)
     if type(response) is not dict:
         logger.error(
             f'{datetime.now()} Ответ получен в формате отличном от словаря'
         )
         raise TypeError("Ответ получен в формате отличном от словаря")
-    print(response['homeworks'])
     return response['homeworks'][0]
 
 
