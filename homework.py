@@ -45,7 +45,7 @@ def send_message(bot, message):
     try:
         bot.send_message(TELEGRAM_CHAT_ID, message)
         logger.info(
-            f'{datetime.now()} Сообщение {message} направлено в чат {TELEGRAM_CHAT_ID}'
+            f'{datetime.now()} Сообщение {message} направлено в чат'
         )
     except Exception:
         logger.error(
