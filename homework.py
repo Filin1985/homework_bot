@@ -44,9 +44,13 @@ def send_message(bot, message):
     """Направляет сообщение в чат телеграмм."""
     try:
         bot.send_message(TELEGRAM_CHAT_ID, message)
-        logger.info(f'{datetime.now()} Сообщение {message} направлено в чат {TELEGRAM_CHAT_ID}')
+        logger.info(
+            f'{datetime.now()} Сообщение {message} направлено в чат {TELEGRAM_CHAT_ID}'
+        )
     except Exception:
-        logger.error(f'{datetime.now()} Сбой при отправке сообщения в чат телеграмм')
+        logger.error(
+            f'{datetime.now()} Сбой при отправке сообщения в чат телеграмм'
+        )
 
 
 def get_api_answer(current_timestamp):
@@ -89,7 +93,9 @@ def parse_status(homework):
     try:
         homework_name = homework['homework_name']
     except KeyError:
-        logging.error(f'{datetime.now()} Ключа "homework_name" нет в результате запроса')
+        logging.error(
+            f'{datetime.now()} Ключа "homework_name" нет в результате запроса'
+        )
     homework_name = homework['homework_name']
     homework_status = homework['status']
     if homework_status not in HOMEWORK_STATUSES:
