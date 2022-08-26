@@ -12,7 +12,6 @@ from logging.handlers import RotatingFileHandler
 load_dotenv()
 logging.basicConfig(
     level=logging.DEBUG,
-    filename='program.log',
     format='%(asctime)s %(levelname)s %(message)s',
     filemode='w'
 )
@@ -20,7 +19,7 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.INFO)
 handler = RotatingFileHandler(
-    'my_logger.log',
+    'program.log',
     maxBytes=50000000,
     backupCount=5
 )
@@ -45,9 +44,9 @@ def send_message(bot, message):
     """Направляет сообщение в чат телеграмм."""
     try:
         bot.send_message(TELEGRAM_CHAT_ID, message)
-        logger.info('Сообщение {message} направлено в чат {TELEGRAM_CHAT_ID}')
+        logger.info(f'{datetime.now()} Сообщение {message} направлено в чат {TELEGRAM_CHAT_ID}')
     except Exception:
-        logger.error('Сбой при отправке сообщения в чат телеграмм')
+        logger.error(f'{datetime.now()} Сбой при отправке сообщения в чат телеграмм')
 
 
 def get_api_answer(current_timestamp):
@@ -76,21 +75,21 @@ def check_response(response):
             f'{datetime.now()} Ответ получен в формате отличном от словаря'
         )
         raise TypeError("Ответ получен в формате отличном от словаря")
-    try:
-        homework = response['homeworks'][0]
-    except IndexError:
-        logger.error('Домашняя работа отсутствует')
-        raise IndexError('Домашняя работа отсутствует')
-    return homework
+    homeworks_list = response['homeworks']
+    if type(homeworks_list) is not list:
+        logger.error(
+            f'{datetime.now()} Ответ получен в формате отличном от списка'
+        )
+        raise TypeError("Ответ получен в формате отличном от списка")
+    return response['homeworks']
 
 
 def parse_status(homework):
     """Проверяет данные полученной домашки и возвращает текущий статус."""
-    if 'homework_name' not in homework:
-        logger.error(
-            f'{datetime.now()} Ключа "homework_name" нет в результате запроса'
-        )
-        raise Exception('Ключа "homework_name" нет в результате запроса')
+    try:
+        homework_name = homework['homework_name']
+    except KeyError:
+        logging.error(f'{datetime.now()} Ключа "homework_name" нет в результате запроса')
     homework_name = homework['homework_name']
     homework_status = homework['status']
     if homework_status not in HOMEWORK_STATUSES:
