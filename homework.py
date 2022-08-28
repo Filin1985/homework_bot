@@ -174,7 +174,7 @@ def main():
         finally:
             time.sleep(RETRY_TIME)
 
-
+# flake8: noqa: C901
 if __name__ == '__main__':
     logging.basicConfig(
         level=logging.DEBUG,
@@ -191,9 +191,11 @@ if __name__ == '__main__':
     JSON_DATA = {'homeworks': 1}
 
     class TestReq(TestCase):
-        """Тестирование отработки исключений при запросе на сервер"""
+        """Тестирование отработки исключений при запросе на сервер."""
+
         @classmethod
         def setUpClass(cls):
+            """Создание mock объекта перед каждым тестом."""
             super().setUpClass()
             cls.resp = mock.Mock()
 
@@ -227,7 +229,8 @@ if __name__ == '__main__':
 
         @mock.patch('requests.get')
         def test_homework_status(self, req_get):
-            """Запрос выдаст исключение при невалидном статусе домашнего задания"""
+            """Запрос выдаст исключение
+            при невалидном статусе домашнего задания."""
             self.resp.json = mock.Mock(
                 return_value=JSON_HOMEWORK
             )
@@ -241,7 +244,10 @@ if __name__ == '__main__':
 
         @mock.patch('requests.get')
         def test_json(self, req_get):
-            """Запрос выдаст исключение при невалидном значении ключа 'homeworks'"""
+            """
+            Запрос выдаст исключение при
+            невалидном значении ключа 'homeworks'.
+            """
             self.resp.json = mock.Mock(
                 return_value=JSON_DATA
             )
