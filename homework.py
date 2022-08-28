@@ -1,7 +1,5 @@
-from datetime import datetime
 import logging
 import os
-from pickle import TRUE
 from urllib.error import HTTPError
 import requests
 import telegram
@@ -106,7 +104,7 @@ def get_api_answer(current_timestamp):
                 endpoint=ENDPOINT,
                 headers=HEADERS,
                 params=params,
-                text=f'имеет невалидный токен '
+                text='имеет невалидный токен '
             )
         )
     return result
@@ -187,9 +185,13 @@ if __name__ == '__main__':
     from unittest import TestCase, mock, main as uni_main
     RegEx = requests.RequestException
     JSON_ERROR = {'error': 'testing'}
-    JSON_HOMEWORK = {'homeworks': [{'homework_name': 'test', 'status': 'test'}]}
+    JSON_HOMEWORK = {
+        'homeworks': [{'homework_name': 'test', 'status': 'test'}]
+    }
     JSON_DATA = {'homeworks': 1}
+
     class TestReq(TestCase):
+        """Тестирование отработки исключений при запросе на сервер"""
         @classmethod
         def setUpClass(cls):
             super().setUpClass()
@@ -197,6 +199,7 @@ if __name__ == '__main__':
 
         @mock.patch('requests.get')
         def test_error(self, req_get):
+            """Запрос выдаст исключение при ошибке сервера."""
             self.resp.json = mock.Mock(
                 return_value=JSON_ERROR
             )
@@ -210,6 +213,7 @@ if __name__ == '__main__':
 
         @mock.patch('requests.get')
         def test_status_code(self, req_get):
+            """Запрос выдаст исключение возврате статуса отличного от 200."""
             self.resp.status_code = mock.Mock(
                 return_value=333
             )
@@ -223,6 +227,7 @@ if __name__ == '__main__':
 
         @mock.patch('requests.get')
         def test_homework_status(self, req_get):
+            """Запрос выдаст исключение при невалидном статусе домашнего задания"""
             self.resp.json = mock.Mock(
                 return_value=JSON_HOMEWORK
             )
@@ -236,6 +241,7 @@ if __name__ == '__main__':
 
         @mock.patch('requests.get')
         def test_json(self, req_get):
+            """Запрос выдаст исключение при невалидном значении ключа 'homeworks'"""
             self.resp.json = mock.Mock(
                 return_value=JSON_DATA
             )
