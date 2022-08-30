@@ -69,7 +69,6 @@ CHECK_STATUS = 'Статус проверки не изменился'
 MESSAGE_ERROR = 'Сбой в работе программы: {error}'
 MESSAGE_SENT = 'Сообщение {message} направлено в чат'
 MESSAGE_NOT_SENT = 'Сообщение {message} не удалось направить в чат; {error}'
-FINAL_ERROR = 'В работе бота возникла ошибка: {error}'
 
 
 def send_message(bot, message):
@@ -97,7 +96,7 @@ def get_api_answer(current_timestamp):
     try:
         response = requests.get(**request_data)
     except requests.exceptions.RequestException as error:
-        raise HTTPError(
+        raise ConnectionError(
             REQUEST_ERROR.format(text=error, **request_data)
         )
     if response.status_code != HTTPStatus.OK:
@@ -110,6 +109,7 @@ def get_api_answer(current_timestamp):
             raise ServerDenied(
                 RESPONSE_ERROR.format(
                     code=key,
+                    text=result[key]
                     **request_data
                 )
             )
@@ -146,8 +146,7 @@ def check_tokens():
     tokens_failed = [name for name in TOKENS if not globals()[name]]
     if tokens_failed:
         logging.error(f'Токен(ы) {tokens_failed} отсутствует')
-        return False
-    return True
+    return not tokens_failed
 
 
 def main():
@@ -162,18 +161,18 @@ def main():
         try:
             response = get_api_answer(current_timestamp)
             message = parse_status(check_response(response))
-            if status != message:
-                if send_message(bot, message):
-                    status = message
-                    current_timestamp = response.get(
-                        'current_date',
-                        current_timestamp
-                    )
-            else:
+            if status == message:
                 logging.debug(CHECK_STATUS)
+                continue
+            if send_message(bot, message):
+                status = message
+                current_timestamp = response.get(
+                    'current_date',
+                    current_timestamp
+                )
         except Exception as error:
             message = MESSAGE_ERROR.format(error=error)
-            logging.error(FINAL_ERROR.format(error=error))
+            logging.error(MESSAGE_ERROR.format(error=error))
             if message != error_message and send_message(bot, message):
                 error_message = message
         finally:
@@ -187,3 +186,4 @@ if __name__ == '__main__':
         filemode='w'
     )
     main()
+
