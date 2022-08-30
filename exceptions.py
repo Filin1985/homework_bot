@@ -1,5 +1,8 @@
-class InvalidTokenOrDate(Exception):
+class ServerDenied(Exception):
     pass
 
-class UnavailableToken(Exception):
+class RequestError(Exception):
+    pass
+
+class ResponseStatusError(Exception):
     pass
