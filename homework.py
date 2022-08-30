@@ -3,12 +3,12 @@ import logging
 from logging.handlers import RotatingFileHandler
 import os
 import time
-from urllib.error import HTTPError
 
 from dotenv import load_dotenv
 import requests
 import telegram
 
+from exceptions import InvalidTokenOrDate, UnavailableToken
 
 load_dotenv()
 
@@ -37,12 +37,26 @@ HOMEWORK_VERDICTS = {
     'rejected': 'Работа проверена: у ревьюера есть замечания.'
 }
 
-PARSE_STATUS_PHRASE = 'Изменился статус проверки работы "{name}". {verdict}'
-CONNECTION_ERROR_PHRASE = (
+PARSE_STATUS = 'Изменился статус проверки работы "{name}". {verdict}'
+REQUEST_ERROR = (
     'Запрос {endpoint} с заголовками {headers} и'
     'параметрами {params}: '
     '{text}'
 )
+RESPONSE_ERROR = (
+    'Запрос {endpoint} с заголовками {headers} и'
+    'параметрами {params}: '
+    'вурнул ответ с ключем {code} и'
+    'значением {text}'
+)
+NOT_DICT = 'Тип данных {response} не словарь'
+NOT_LIST = (
+    'Тип данных {homeworks} по ключу "homeworks" не соответствует списку'
+)
+HOMEWORK_STATUS = 'Неожиданный статус {status}'
+CHECK_TOKENS = 'Один или несколько токенов отсутствуют'
+CHECK_STATUS = 'Статус проверки не изменился'
+MESSAGE_ERROR = 'Сбой в работе программы: {error}'
 MESSAGE_SENT = 'Сообщение {message} направлено в чат'
 MESSAGE_NOT_SENT = 'Сообщение {message} не удалось направить в чат; {error}'
 
@@ -69,7 +83,7 @@ def get_api_answer(current_timestamp):
         response = requests.get(ENDPOINT, headers=HEADERS, params=params)
     except requests.exceptions.RequestException as error:
         raise error(
-            CONNECTION_ERROR_PHRASE.format(
+            REQUEST_ERROR.format(
                 endpoint=ENDPOINT,
                 headers=HEADERS,
                 params=params,
@@ -77,8 +91,8 @@ def get_api_answer(current_timestamp):
             )
         )
     if response.status_code != HTTPStatus.OK:
-        raise HTTPError(
-            CONNECTION_ERROR_PHRASE.format(
+        raise requests.exceptions.RequestException(
+            REQUEST_ERROR.format(
                 endpoint=ENDPOINT,
                 headers=HEADERS,
                 params=params,
@@ -87,12 +101,13 @@ def get_api_answer(current_timestamp):
         )
     result = response.json()
     if 'code' in result and 'error' in result:
-        raise HTTPError(
-            CONNECTION_ERROR_PHRASE.format(
+        raise InvalidTokenOrDate(
+            RESPONSE_ERROR.format(
                 endpoint=ENDPOINT,
                 headers=HEADERS,
                 params=params,
-                text=f'передан неверный параметр {params}'
+                code=result.get('code'),
+                text=result['code']
             )
         )
     return result
@@ -101,16 +116,14 @@ def get_api_answer(current_timestamp):
 def check_response(response):
     """Проверяет, что полученные данные в нужном формате."""
     if not isinstance(response, dict):
-        raise TypeError("Тип полученных данных не соответствует словарю")
+        raise TypeError(NOT_DICT.format(response=response))
     try:
         homeworks = response['homeworks']
     except KeyError:
         raise KeyError('Данные по ключу "homeworks" отсутствуют')
     if not isinstance(homeworks, list):
-        raise TypeError(
-            'Тип данных по ключу "homeworks" не соответствует списку'
-        )
-    return homeworks
+        raise TypeError(NOT_LIST.format(homeworks=homeworks))
+    return response['homeworks']
 
 
 def parse_status(homework):
@@ -118,10 +131,8 @@ def parse_status(homework):
     name = homework['homework_name']
     status = homework['status']
     if status not in HOMEWORK_VERDICTS:
-        raise ValueError(
-            f'Неожиданный статус {status}'
-        )
-    return PARSE_STATUS_PHRASE.format(
+        raise ValueError(HOMEWORK_STATUS.format(status=status))
+    return PARSE_STATUS.format(
         name=name,
         verdict=HOMEWORK_VERDICTS[status]
     )
@@ -130,17 +141,16 @@ def parse_status(homework):
 def check_tokens():
     """Проверяет наличие и валидность необходимых переменных окружения."""
     for name in TOKENS:
-        if globals()[name] != name:
+        if globals()[name] != name and not globals()[name]:
             logging.error(f'Токен {name} отсутствует')
         return False
-    if all(TOKENS):
-        return True
+    return True
 
 
 def main():
     """Основная логика работы бота."""
     if not check_tokens():
-        raise AttributeError('Один или несколько токенов отсутствуют')
+        raise UnavailableToken(CHECK_TOKENS)
     bot = telegram.Bot(token=TELEGRAM_TOKEN)
     current_timestamp = int(time.time())
     status = ''
@@ -150,18 +160,17 @@ def main():
             response = get_api_answer(current_timestamp)
             message = parse_status(check_response(response))
             if status != message:
-                is_sended = send_message(bot, message)
-                if is_sended:
+                if send_message(bot, message):
                     status = message
+                    current_timestamp = response.get('current_date', current_timestamp)
             else:
-                logging.debug('Статус проверки не изменился')
-            current_timestamp = response.get('current_date', current_timestamp)
+                logging.debug(CHECK_STATUS)   
         except Exception as error:
-            message = f'Сбой в работе программы: {error}'
+            message = MESSAGE_ERROR.format(error=error)
             if message != error_message:
-                send_message(bot, message)
-                error_message = message
-            logging.error(f'Сбой в работе программы: {error}')
+                if send_message(bot, message):
+                    error_message = message
+            logging.error(f'В работе бота возникла ошибка: {error}')
         finally:
             time.sleep(RETRY_TIME)
 
