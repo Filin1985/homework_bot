@@ -1,13 +1,14 @@
+from http import HTTPStatus
 import logging
+from logging.handlers import RotatingFileHandler
 import os
-from urllib.error import HTTPError
-import requests
-import telegram
 import time
+from urllib.error import HTTPError
 
 from dotenv import load_dotenv
-from http import HTTPStatus
-from logging.handlers import RotatingFileHandler
+import requests
+import telegram
+
 
 load_dotenv()
 
@@ -23,6 +24,8 @@ logger.addHandler(handler)
 PRACTICUM_TOKEN = os.getenv('PR_TOKEN')
 TELEGRAM_TOKEN = os.getenv('BOT_TOKEN')
 TELEGRAM_CHAT_ID = os.getenv('CHAT_ID')
+
+TOKENS = ['PRACTICUM_TOKEN', 'TELEGRAM_TOKEN', 'TELEGRAM_CHAT_ID']
 
 RETRY_TIME = 600
 ENDPOINT = 'https://practicum.yandex.ru/api/user_api/homework_statuses/'
@@ -40,6 +43,8 @@ CONNECTION_ERROR_PHRASE = (
     'параметрами {params}: '
     '{text}'
 )
+MESSAGE_SENT = 'Сообщение {message} направлено в чат'
+MESSAGE_NOT_SENT = 'Сообщение {message} не удалось направить в чат; {error}'
 
 
 def send_message(bot, message):
@@ -47,12 +52,12 @@ def send_message(bot, message):
     try:
         bot.send_message(TELEGRAM_CHAT_ID, message)
         logger.info(
-            f'Сообщение {message} направлено в чат'
+            MESSAGE_SENT.format(message=message)
         )
         return True
-    except Exception:
+    except Exception as error:
         logger.exception(
-            f'Сообщение {message} не удалось направить в чат'
+            MESSAGE_NOT_SENT.format(message=message, error=error)
         )
         return False
 
@@ -62,21 +67,13 @@ def get_api_answer(current_timestamp):
     params = {'from_date': current_timestamp}
     try:
         response = requests.get(ENDPOINT, headers=HEADERS, params=params)
-    except ConnectionError:
-        logger.error(
+    except requests.exceptions.RequestException as error:
+        raise error(
             CONNECTION_ERROR_PHRASE.format(
                 endpoint=ENDPOINT,
                 headers=HEADERS,
                 params=params,
-                text=f'вернул {response.text}'
-            )
-        )
-        raise ConnectionError(
-            CONNECTION_ERROR_PHRASE.format(
-                endpoint=ENDPOINT,
-                headers=HEADERS,
-                params=params,
-                text=f'вернул {response.text}'
+                text=f'вернул {error}'
             )
         )
     if response.status_code != HTTPStatus.OK:
@@ -89,22 +86,13 @@ def get_api_answer(current_timestamp):
             )
         )
     result = response.json()
-    if 'code' and 'error' in result:
+    if 'code' in result and 'error' in result:
         raise HTTPError(
             CONNECTION_ERROR_PHRASE.format(
                 endpoint=ENDPOINT,
                 headers=HEADERS,
                 params=params,
                 text=f'передан неверный параметр {params}'
-            )
-        )
-    if 'code' in result:
-        raise HTTPError(
-            CONNECTION_ERROR_PHRASE.format(
-                endpoint=ENDPOINT,
-                headers=HEADERS,
-                params=params,
-                text='имеет невалидный токен '
             )
         )
     return result
@@ -130,19 +118,22 @@ def parse_status(homework):
     name = homework['homework_name']
     status = homework['status']
     if status not in HOMEWORK_VERDICTS:
-        raise KeyError(
-            f'Полученный статус {status} несоотвутствует ожидаемым'
+        raise ValueError(
+            f'Неожиданный статус {status}'
         )
-    verdict = HOMEWORK_VERDICTS[status]
-    return PARSE_STATUS_PHRASE.format(name=name, verdict=verdict)
+    return PARSE_STATUS_PHRASE.format(
+        name=name,
+        verdict=HOMEWORK_VERDICTS[status]
+    )
 
 
 def check_tokens():
     """Проверяет наличие и валидность необходимых переменных окружения."""
-    for name in ['PRACTICUM_TOKEN', 'TELEGRAM_TOKEN', 'TELEGRAM_CHAT_ID']:
+    for name in TOKENS:
         if globals()[name] != name:
             logging.error(f'Токен {name} отсутствует')
-    if all([PRACTICUM_TOKEN, TELEGRAM_TOKEN, TELEGRAM_CHAT_ID]):
+        return False
+    if all(TOKENS):
         return True
 
 
@@ -174,7 +165,6 @@ def main():
         finally:
             time.sleep(RETRY_TIME)
 
-# flake8: noqa: C901
 if __name__ == '__main__':
     logging.basicConfig(
         level=logging.DEBUG,
@@ -182,81 +172,3 @@ if __name__ == '__main__':
         filemode='w'
     )
     main()
-    from unittest import TestCase, mock, main as uni_main
-    RegEx = requests.RequestException
-    JSON_ERROR = {'error': 'testing'}
-    JSON_HOMEWORK = {
-        'homeworks': [{'homework_name': 'test', 'status': 'test'}]
-    }
-    JSON_DATA = {'homeworks': 1}
-
-    class TestReq(TestCase):
-        """Тестирование отработки исключений при запросе на сервер."""
-
-        @classmethod
-        def setUpClass(cls):
-            """Создание mock объекта перед каждым тестом."""
-            super().setUpClass()
-            cls.resp = mock.Mock()
-
-        @mock.patch('requests.get')
-        def test_error(self, req_get):
-            """Запрос выдаст исключение при ошибке сервера."""
-            self.resp.json = mock.Mock(
-                return_value=JSON_ERROR
-            )
-            req_get.return_value = self.resp
-            req_get.side_effect = mock.Mock(
-                side_effect=RegEx('Server Error')
-            )
-            if 'error' in self.resp.json():
-                return req_get.side_effect()
-            main()
-
-        @mock.patch('requests.get')
-        def test_status_code(self, req_get):
-            """Запрос выдаст исключение возврате статуса отличного от 200."""
-            self.resp.status_code = mock.Mock(
-                return_value=333
-            )
-            req_get.return_value = self.resp
-            req_get.side_effect = mock.Mock(
-                side_effect=RegEx('Invalid status code')
-            )
-            if self.resp.status_code != 200:
-                return req_get.side_effect()
-            main()
-
-        @mock.patch('requests.get')
-        def test_homework_status(self, req_get):
-            """Запрос выдаст исключение
-            при невалидном статусе домашнего задания."""
-            self.resp.json = mock.Mock(
-                return_value=JSON_HOMEWORK
-            )
-            req_get.return_value = self.resp
-            req_get.side_effect = mock.Mock(
-                side_effect=RegEx('Unexpected Status')
-            )
-            if self.resp.json()['homeworks'][0]['homework_name'] == 'test':
-                return req_get.side_effect()
-            main()
-
-        @mock.patch('requests.get')
-        def test_json(self, req_get):
-            """
-            Запрос выдаст исключение при
-            невалидном значении ключа 'homeworks'.
-            """
-            self.resp.json = mock.Mock(
-                return_value=JSON_DATA
-            )
-            req_get.return_value = self.resp
-            req_get.side_effect = mock.Mock(
-                side_effect=RegEx('Invalid JSON')
-            )
-            if not isinstance(self.resp.json()['homeworks'], list):
-                return req_get.side_effect()
-            main()
-
-    uni_main()
