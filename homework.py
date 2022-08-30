@@ -30,6 +30,7 @@ TELEGRAM_TOKEN = os.getenv('BOT_TOKEN')
 TELEGRAM_CHAT_ID = os.getenv('CHAT_ID')
 
 TOKENS = ('PRACTICUM_TOKEN', 'TELEGRAM_TOKEN', 'TELEGRAM_CHAT_ID')
+ERROR_CODES = ['code', 'error']
 
 RETRY_TIME = 600
 ENDPOINT = 'https://practicum.yandex.ru/api/user_api/homework_statuses/'
@@ -104,8 +105,8 @@ def get_api_answer(current_timestamp):
             STATUS_ERROR.format(status=response.status_code, **request_data)
         )
     result = response.json()
-    for key in result.keys():
-        if key == 'code' or key == 'error':
+    for key in ERROR_CODES:
+        if key in result:
             raise ServerDenied(
                 RESPONSE_ERROR.format(
                     code=key,
