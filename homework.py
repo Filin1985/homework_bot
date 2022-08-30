@@ -1,3 +1,4 @@
+from urllib.error import HTTPError
 from http import HTTPStatus
 import logging
 import os
@@ -10,7 +11,6 @@ import telegram
 
 from exceptions import (
     ServerDenied,
-    RequestError,
     ResponseStatusError
 )
 
@@ -43,18 +43,18 @@ HOMEWORK_VERDICTS = {
 
 PARSE_STATUS = 'Изменился статус проверки работы "{name}". {verdict}'
 REQUEST_ERROR = (
-    'Запрос {endpoint} с заголовками {headers} и'
+    'Запрос {url} с заголовками {headers} и'
     'параметрами {params}: '
     'вернул {text}'
 )
 RESPONSE_ERROR = (
-    'Запрос {endpoint} с заголовками {headers} и'
+    'Запрос {url} с заголовками {headers} и'
     'параметрами {params}: '
     'вурнул ответ с ключем {code} и'
     'значением {text}'
 )
 STATUS_ERROR = (
-    'Запрос {endpoint} с заголовками {headers} и'
+    'Запрос {url} с заголовками {headers} и'
     'параметрами {params}: '
     'вурнул ответ со статусом {status}'
 )
@@ -96,7 +96,7 @@ def get_api_answer(current_timestamp):
     try:
         response = requests.get(**request_data)
     except requests.exceptions.RequestException as error:
-        raise RequestError(
+        raise HTTPError(
             REQUEST_ERROR.format(text=error, **request_data)
         )
     if response.status_code != HTTPStatus.OK:
@@ -104,14 +104,14 @@ def get_api_answer(current_timestamp):
             STATUS_ERROR.format(status=response.status_code, **request_data)
         )
     result = response.json()
-    if 'code' in result or 'error' in result:
-        raise ServerDenied(
-            RESPONSE_ERROR.format(
-                code=list(result.keys())[0],
-                text=result['code'],
-                **request_data
+    for key in result.keys():
+        if key == 'code' or key == 'error':
+            raise ServerDenied(
+                RESPONSE_ERROR.format(
+                    code=key,
+                    **request_data
+                )
             )
-        )
     return result
 
 
