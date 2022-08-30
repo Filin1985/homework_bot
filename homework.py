@@ -1,4 +1,3 @@
-from urllib.error import HTTPError
 from http import HTTPStatus
 import logging
 import os
@@ -109,7 +108,7 @@ def get_api_answer(current_timestamp):
             raise ServerDenied(
                 RESPONSE_ERROR.format(
                     code=key,
-                    text=result[key]
+                    text=result[key],
                     **request_data
                 )
             )
@@ -186,4 +185,3 @@ if __name__ == '__main__':
         filemode='w'
     )
     main()
-
