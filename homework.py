@@ -145,7 +145,7 @@ def check_tokens():
     tokens_failed = [name for name in TOKENS if not globals()[name]]
     if tokens_failed:
         logging.error(f'Токен(ы) {tokens_failed} отсутствует')
-        return False    
+        return False
     return True
 
 
