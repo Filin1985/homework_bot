@@ -1,14 +1,18 @@
 from http import HTTPStatus
 import logging
-from logging.handlers import RotatingFileHandler
 import os
+from logging.handlers import RotatingFileHandler
 import time
 
 from dotenv import load_dotenv
 import requests
 import telegram
 
-from exceptions import InvalidTokenOrDate, UnavailableToken
+from exceptions import (
+    ServerDenied,
+    RequestError,
+    ResponseStatusError
+)
 
 load_dotenv()
 
@@ -25,7 +29,7 @@ PRACTICUM_TOKEN = os.getenv('PR_TOKEN')
 TELEGRAM_TOKEN = os.getenv('BOT_TOKEN')
 TELEGRAM_CHAT_ID = os.getenv('CHAT_ID')
 
-TOKENS = ['PRACTICUM_TOKEN', 'TELEGRAM_TOKEN', 'TELEGRAM_CHAT_ID']
+TOKENS = ('PRACTICUM_TOKEN', 'TELEGRAM_TOKEN', 'TELEGRAM_CHAT_ID')
 
 RETRY_TIME = 600
 ENDPOINT = 'https://practicum.yandex.ru/api/user_api/homework_statuses/'
@@ -41,13 +45,18 @@ PARSE_STATUS = 'Изменился статус проверки работы "{
 REQUEST_ERROR = (
     'Запрос {endpoint} с заголовками {headers} и'
     'параметрами {params}: '
-    '{text}'
+    'вернул {text}'
 )
 RESPONSE_ERROR = (
     'Запрос {endpoint} с заголовками {headers} и'
     'параметрами {params}: '
     'вурнул ответ с ключем {code} и'
     'значением {text}'
+)
+STATUS_ERROR = (
+    'Запрос {endpoint} с заголовками {headers} и'
+    'параметрами {params}: '
+    'вурнул ответ со статусом {status}'
 )
 NOT_DICT = 'Тип данных {response} не словарь'
 NOT_LIST = (
@@ -59,6 +68,7 @@ CHECK_STATUS = 'Статус проверки не изменился'
 MESSAGE_ERROR = 'Сбой в работе программы: {error}'
 MESSAGE_SENT = 'Сообщение {message} направлено в чат'
 MESSAGE_NOT_SENT = 'Сообщение {message} не удалось направить в чат; {error}'
+FINAL_ERROR = 'В работе бота возникла ошибка: {error}'
 
 
 def send_message(bot, message):
@@ -78,36 +88,28 @@ def send_message(bot, message):
 
 def get_api_answer(current_timestamp):
     """Направляет запрос в API сервиса Практикум.Домашка."""
-    params = {'from_date': current_timestamp}
+    request_data = dict(
+        url=ENDPOINT,
+        headers=HEADERS,
+        params={'from_date': current_timestamp}
+    )
     try:
-        response = requests.get(ENDPOINT, headers=HEADERS, params=params)
+        response = requests.get(**request_data)
     except requests.exceptions.RequestException as error:
-        raise error(
-            REQUEST_ERROR.format(
-                endpoint=ENDPOINT,
-                headers=HEADERS,
-                params=params,
-                text=f'вернул {error}'
-            )
+        raise RequestError(
+            REQUEST_ERROR.format(text=error, **request_data)
         )
     if response.status_code != HTTPStatus.OK:
-        raise requests.exceptions.RequestException(
-            REQUEST_ERROR.format(
-                endpoint=ENDPOINT,
-                headers=HEADERS,
-                params=params,
-                text=f'вернул {response.status_code}'
-            )
+        raise ResponseStatusError(
+            STATUS_ERROR.format(status=response.status_code, **request_data)
         )
     result = response.json()
-    if 'code' in result and 'error' in result:
-        raise InvalidTokenOrDate(
+    if 'code' in result or 'error' in result:
+        raise ServerDenied(
             RESPONSE_ERROR.format(
-                endpoint=ENDPOINT,
-                headers=HEADERS,
-                params=params,
-                code=result.get('code'),
-                text=result['code']
+                code=list(result.keys())[0],
+                text=result['code'],
+                **request_data
             )
         )
     return result
@@ -116,14 +118,14 @@ def get_api_answer(current_timestamp):
 def check_response(response):
     """Проверяет, что полученные данные в нужном формате."""
     if not isinstance(response, dict):
-        raise TypeError(NOT_DICT.format(response=response))
+        raise TypeError(NOT_DICT.format(response=type(response)))
     try:
         homeworks = response['homeworks']
     except KeyError:
         raise KeyError('Данные по ключу "homeworks" отсутствуют')
     if not isinstance(homeworks, list):
-        raise TypeError(NOT_LIST.format(homeworks=homeworks))
-    return response['homeworks']
+        raise TypeError(NOT_LIST.format(homeworks=type(homeworks)))
+    return homeworks
 
 
 def parse_status(homework):
@@ -140,18 +142,17 @@ def parse_status(homework):
 
 def check_tokens():
     """Проверяет наличие и валидность необходимых переменных окружения."""
-    token_valid = True
-    for name in TOKENS:
-        if not globals()[name]:
-            logging.error(f'Токен {name} отсутствует')
-            token_valid = False
-    return token_valid
+    tokens_failed = [name for name in TOKENS if not globals()[name]]
+    if tokens_failed:
+        logging.error(f'Токен(ы) {tokens_failed} отсутствует')
+        return False    
+    return True
 
 
 def main():
     """Основная логика работы бота."""
     if not check_tokens():
-        raise UnavailableToken(CHECK_TOKENS)
+        raise ValueError(CHECK_TOKENS)
     bot = telegram.Bot(token=TELEGRAM_TOKEN)
     current_timestamp = int(time.time())
     status = ''
@@ -171,10 +172,9 @@ def main():
                 logging.debug(CHECK_STATUS)
         except Exception as error:
             message = MESSAGE_ERROR.format(error=error)
-            if message != error_message:
-                if send_message(bot, message):
-                    error_message = message
-            logging.error(f'В работе бота возникла ошибка: {error}')
+            logging.error(FINAL_ERROR.format(error=error))
+            if message != error_message and send_message(bot, message):
+                error_message = message
         finally:
             time.sleep(RETRY_TIME)
 
