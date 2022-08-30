@@ -171,7 +171,7 @@ def main():
                 )
         except Exception as error:
             message = MESSAGE_ERROR.format(error=error)
-            logging.error(MESSAGE_ERROR.format(error=error))
+            logging.error(message)
             if message != error_message and send_message(bot, message):
                 error_message = message
         finally:
