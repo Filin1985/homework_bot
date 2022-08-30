@@ -140,11 +140,12 @@ def parse_status(homework):
 
 def check_tokens():
     """Проверяет наличие и валидность необходимых переменных окружения."""
+    token_valid = True
     for name in TOKENS:
-        if globals()[name] != name and not globals()[name]:
+        if not globals()[name]:
             logging.error(f'Токен {name} отсутствует')
-        return False
-    return True
+            token_valid = False
+    return token_valid
 
 
 def main():
