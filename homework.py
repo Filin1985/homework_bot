@@ -162,9 +162,12 @@ def main():
             if status != message:
                 if send_message(bot, message):
                     status = message
-                    current_timestamp = response.get('current_date', current_timestamp)
+                    current_timestamp = response.get(
+                        'current_date',
+                        current_timestamp
+                    )
             else:
-                logging.debug(CHECK_STATUS)   
+                logging.debug(CHECK_STATUS)
         except Exception as error:
             message = MESSAGE_ERROR.format(error=error)
             if message != error_message:
@@ -173,6 +176,7 @@ def main():
             logging.error(f'В работе бота возникла ошибка: {error}')
         finally:
             time.sleep(RETRY_TIME)
+
 
 if __name__ == '__main__':
     logging.basicConfig(
